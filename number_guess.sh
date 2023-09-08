@@ -2,73 +2,85 @@
 
 # global variables
 PSQL="psql -X --username=postgres --dbname=number_guess --tuples-only --no-align -c"
-RANDOM_NUMBER=$((RANDOM % 1000 + 1))
-COUNT=10
-ATTEMPTS_LEFT=$((COUNT))
+RANDOM_NUMBER=$((RANDOM % 1000 + 1)) # random number between 1 and 1000 
+USERNAME=''
+USER_ID=0
+GAMES_PLAYED=0
+BEST_GAME=0
+USER_NUMBER=0
+NUMBER_OF_GUESSES=0
 
-
-# welcome message
-echo -e "\n~~~~~ Number Guessing Game ~~~~~\n"
-
-# read username
-echo Enter your username: 
-read USERNAME
-
-# check if user exists in the database
-USER_ID=$($PSQL "SELECT user_id FROM users WHERE username='$USERNAME';")
-if [[ -z $USER_ID ]]
-then 
-    USER_ID=$($PSQL "INSERT INTO users (username) VALUES ('$USERNAME') RETURNING user_id;")
-    echo -e "\nWelcome $USERNAME! It looks like this is your first time here.\n"
-else 
-    echo -e "\nUser ($USER_ID) exists." 
-    GAMES_PLAYED=$($PSQL "SELECT COUNT(game_id) FROM games WHERE user_id=$USER_ID;")
-    BEST_GAME=$($PSQL "SELECT MIN(guesses) FROM games WHERE user_id=$USER_ID;")
-    echo -e "\nWelcome back $USERNAME! You have played $GAMES_PLAYED, and your best game took $BEST_GAME guesses.\n"
-fi 
 
 # game over 
 GAME_OVER() {
-    echo -e "\nIt wasn't this time. The correct number was $RANDOM_NUMBER.\nTry again later!"
+    if [[ -z $1 ]]
+    then 
+        echo '\nError\n'
+        exit
+    else 
+        GAMES_PLAYED=$1
+        INSERT_GAME_RESULT=$($PSQL "INSERT INTO games (user_id, guesses) VALUES ($USER_ID, $GAMES_PLAYED);" )
+        echo -e "\nYou guessed it in $GAMES_PLAYED tries. The secret number was $RANDOM_NUMBER.\n"
+    fi
 }
 
-# main function
-# GUESSING_GAME() {
-    
+# guessing game
+GUESSING_GAME() {
+    echo -e "\nGuess the secret number between 1 and 1000:"
 
-#     while [[ $COUNT -gt 0 ]]
-#     do 
-#         echo -e "\nEnter an integer between 1 and 1000:" 
-#         read USER_NUMBER
-        
+    until [[ $USER_NUMBER == $RANDOM_NUMBER ]]
+    do 
+       read USER_NUMBER
+       NUMBER_OF_GUESSES=$((NUMBER_OF_GUESSES + 1))
 
-#         if [[ ! $USER_NUMBER =~ ^[0-9]+$ || $USER_NUMBER -lt 1 || $USER_NUMBER -gt 1000 ]]
-#         then 
-#             while [[ ! $USER_NUMBER =~ ^[0-9]+$ || $USER_NUMBER -lt 1 || $USER_NUMBER -gt 1000 ]]
-#             do 
-#                 echo -e "\nInvalid value. Please, enter a number between 1 and 1000:" 
-#                 read USER_NUMBER
-#             done
-#         fi
+        if [[ ! $USER_NUMBER =~ ^[0-9]+$ ]] 
+        then 
+            echo "That's not an integer, guess again:"          
+            else if [[ $USER_NUMBER -lt 1 || $USER_NUMBER -gt 1000 ]] 
+            then 
+                echo "Invalid integer. Please, type a number between 1 and 1000:"
+                else if [[ $USER_NUMBER == $RANDOM_NUMBER ]] 
+                then
+                    GAME_OVER $NUMBER_OF_GUESSES
+                    exit                                        
+                    else if [[ $USER_NUMBER -lt $RANDOM_NUMBER ]] 
+                    then 
+                        echo "It's greater than that. Try again:"
+                    else 
+                        echo "It's lower than that. Try again:"
+                    fi
+                fi
+            fi
+        fi          
+    done 
+}
 
 
-#         if [[ $USER_NUMBER == $RANDOM_NUMBER ]]
-#         then
-#             echo -e "\nCongratulations, you win!"
-#             exit
-#         else 
-#             ATTEMPTS_LEFT=$((ATTEMPTS_LEFT - 1))
-#             if [[ $ATTEMPTS_LEFT == 0 ]]
-#             then 
-#                 GAME_OVER
-#             else 
-#                 echo -e "\nWrong asnwer. You have $ATTEMPTS_LEFT attempts left." 
-#             fi
-#         fi
+#main menu 
+MAIN_MENU() {
+    # welcome message
+    echo -e "\n~~~~~ Number Guessing Game ~~~~~\n"
 
-#         COUNT=$((COUNT - 1))
-#     done 
-# }
+    # read username
+    echo Enter your username: 
+    read USERNAME
 
-# GUESSING_GAME
+    # check if user exists in the database
+    USER_ID=$($PSQL "SELECT user_id FROM users WHERE username='$USERNAME';")
+    if [[ -z $USER_ID ]] 
+    then 
+        INSERT_USER_RESULT=$($PSQL "INSERT INTO users (username) VALUES ('$USERNAME');")
+        USER_ID=$($PSQL "SELECT user_id FROM users WHERE username='$USERNAME';")
+        echo -e "\nWelcome $USERNAME! It looks like this is your first time here.\n"
+    else 
+        GAMES_PLAYED=$($PSQL "SELECT COUNT(game_id) FROM games WHERE user_id=$USER_ID;")
+        BEST_GAME=$($PSQL "SELECT MIN(guesses) FROM games WHERE user_id=$USER_ID;")
+        echo -e "\nWelcome back $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses.\n"
+    fi 
 
+    # call guessing game function
+    GUESSING_GAME
+}
+
+# call main menu 
+MAIN_MENU
